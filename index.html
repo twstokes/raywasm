@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wasm Raytracer</title>
+    <script src="build/raytracer.js"></script>
+    <script src="input.js"></script>
+    <script>
+      Module.onRuntimeInitialized = async () => {
+        // declare functions we exposed from C
+        const raytracer = {
+          run: Module.cwrap("raytrace", null, ["number", "number", "number", "number"]),
+          get_pixmap_size: Module.cwrap("get_pixmap_size", "number"),
+          get_pixmap_pointer: Module.cwrap("get_pixmap_pointer", "number"),
+          free_pixmap_mem: Module.cwrap("free_pixmap_mem", null),
+        };
+
+        // encode the world input so we can send an array pointer to C
+        const encoder = new TextEncoder();
+        const encoded = encoder.encode(input);
+
+        const canvas = document.getElementById("canvas");
+
+        // raytracer settings
+        const width = 800;
+        const samples = 2;
+
+        // allocate a buffer to store our input
+        const buf = Module._malloc(encoded.length * encoded.BYTES_PER_ELEMENT);
+        Module.HEAPU8.set(encoded, buf);
+        console.time("raytracer processing time");
+
+        // run the ray tracer
+        raytracer.run(buf, encoded.length, width, samples);
+        console.timeEnd("raytracer processing time");
+        Module._free(buf);
+
+        // grab the pointer to the pixel map and its size from C
+        const pixmapPointer = raytracer.get_pixmap_pointer();
+        const pixmapSize = raytracer.get_pixmap_size();
+        const pixmapView = new Uint8ClampedArray(
+          Module.HEAP8.buffer,
+          pixmapPointer,
+          pixmapSize
+        );
+
+        // clone the buffer from Wasm to JS so it can be freed
+        const pixmap = new Uint8ClampedArray(pixmapView);
+        raytracer.free_pixmap_mem();
+
+        canvas.width = width;
+        // we can calculate height by knowing how many bytes are in a pixel,
+        // the width, and the total number of allocated bytes
+        canvas.height = pixmapSize / 4 / width;
+
+        const ctx = canvas.getContext("2d");
+        const imageData = new ImageData(pixmap, width);
+        // draw the pixel map to a canvas
+        ctx.putImageData(imageData, 0, 0);
+      };
+    </script>
+  </head>
+  <style>
+    html {
+      background-color: black;
+      color: white;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+    }
+
+    #canvas {
+      width: 500px;
+    }
+  </style>
+  <body>
+    <canvas id="canvas"></canvas>
+  </body>
+</html>
