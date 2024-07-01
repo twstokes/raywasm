@@ -9,8 +9,8 @@ OBJS := $(subst $(SRC_DIR), $(BUILD_DIR), $(SRCS:.c=.o))
 all : $(OBJS) $(WASM)
 
 $(WASM) : $(OBJS) | $(BUILD_DIR)
-	@echo "------ Make $(EXE) ------"
-	rm -f $(EXE)
+	@echo "------ Make $(WASM) ------"
+	rm -f $(WASM)
 	emcc $(CFLAGS) -O3 -g -s EXPORTED_RUNTIME_METHODS='["cwrap"]' -s EXPORTED_FUNCTIONS='["_malloc", "_free"]' -o ${WASM} ${OBJS}
 
 $(BUILD_DIR)/%.o : $(SRC_DIR)/%.c | $(BUILD_DIR)
